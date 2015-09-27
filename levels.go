@@ -31,6 +31,10 @@ var (
 
 type Level int
 
+func (l Level) IsValid() bool {
+	return lmin < l && l < lmax
+}
+
 func (l Level) String() string {
 	if lmin < l && l < lmax {
 		return levels[l]
