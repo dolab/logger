@@ -39,6 +39,30 @@ func Test_Logger_NewWithFile(t *testing.T) {
 	os.Remove(filename)
 }
 
+func Test_Logger_NewWithTags(t *testing.T) {
+	// mock os.Stdout
+	stdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	tags := []string{"testing", "logger"}
+	s := "output testing"
+	expected := "[DEBUG, testing, logger]"
+
+	logger, _ := New("stdout")
+	logger.SetSkip(1)
+
+	taggedLogger := logger.New(tags...)
+	taggedLogger.Debug(s)
+
+	buf := make([]byte, 1024)
+	n, err := r.Read(buf)
+	assert.Nil(t, err)
+	assert.Contains(t, string(buf[:n]), expected)
+
+	os.Stdout = stdout
+}
+
 func Test_Logger_Output(t *testing.T) {
 	// mock os.Stdout
 	stdout := os.Stdout

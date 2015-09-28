@@ -88,12 +88,11 @@ func New(output string) (*Logger, error) {
 
 // New allocates a new Logger with given tags
 func (l *Logger) New(tags ...string) *Logger {
-	l.mux.Lock()
-	defer l.mux.Unlock()
-
 	tmp := *l
-	tmp.buf = []byte{}
+	tmp.mux.Lock()
+	tmp.buf = tmp.buf[:0]
 	tmp.tags = tags
+	tmp.mux.Unlock()
 
 	return &tmp
 }
