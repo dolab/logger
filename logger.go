@@ -126,6 +126,10 @@ func (l *Logger) SetLevelByName(name string) error {
 	return nil
 }
 
+func (l *Logger) Level() Level {
+	return l.level
+}
+
 // SetTags sets tags of all logs, it'll replace previous definition.
 func (l *Logger) SetTags(tags ...string) {
 	l.mux.Lock()
@@ -157,6 +161,10 @@ func (l *Logger) AddTags(tags ...string) {
 	l.mux.Unlock()
 }
 
+func (l *Logger) Tags() []string {
+	return l.tags
+}
+
 // SetFlag changes flag of source file path format
 func (l *Logger) SetFlag(flag int) {
 	l.mux.Lock()
@@ -164,11 +172,19 @@ func (l *Logger) SetFlag(flag int) {
 	l.mux.Unlock()
 }
 
+func (l *Logger) Flag() int {
+	return l.flag
+}
+
 // SetSkip changes the PC
 func (l *Logger) SetSkip(depth int) {
 	l.mux.Lock()
 	l.skip = depth
 	l.mux.Unlock()
+}
+
+func (l *Logger) Skip() int {
+	return l.skip
 }
 
 // SetColor sets whether output logs with colorful
@@ -183,11 +199,6 @@ func (l *Logger) SetOutput(w io.Writer) {
 	l.mux.Lock()
 	l.out = w
 	l.mux.Unlock()
-}
-
-// Write implements io.Writer interface
-func (l *Logger) Write(b []byte) (int, error) {
-	return l.out.Write(b)
 }
 
 // Output writes the output for a logging event.
@@ -235,6 +246,11 @@ func (l *Logger) Output(level Level, s string) error {
 	}
 	_, err := l.Write(l.buf)
 	return err
+}
+
+// Write implements io.Writer interface
+func (l *Logger) Write(b []byte) (int, error) {
+	return l.out.Write(b)
 }
 
 // Debug calls l.Output to print to the logger.
