@@ -185,6 +185,11 @@ func (l *Logger) SetOutput(w io.Writer) {
 	l.mux.Unlock()
 }
 
+// Write implements io.Writer interface
+func (l *Logger) Write(b []byte) (int, error) {
+	return l.out.Write(b)
+}
+
 // Output writes the output for a logging event.
 // The string s contains the text to print after the tags specified
 // by the flags of the Logger.
@@ -228,8 +233,7 @@ func (l *Logger) Output(level Level, s string) error {
 	if l.color {
 		l.buf = []byte(brushes[level].Paint(string(l.buf)))
 	}
-
-	_, err := l.out.Write(l.buf)
+	_, err := l.Write(l.buf)
 	return err
 }
 

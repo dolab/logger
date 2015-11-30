@@ -1,11 +1,18 @@
 package logger
 
 import (
+	"io"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func Test_Logger_New(t *testing.T) {
+	logger, err := New("nil")
+	assert.Nil(t, err)
+	assert.Implements(t, (*io.Writer)(nil), logger)
+}
 
 func Test_Logger_NewWithStdout(t *testing.T) {
 	logger, err := New("stdout")
