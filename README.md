@@ -1,4 +1,7 @@
 # logger
+
+[![Build Status](https://travis-ci.org/dolab/logger.svg?branch=master)](https://travis-ci.org/dolab/logger)
+
 Simple logger with tag support for golang
 
 # Install
