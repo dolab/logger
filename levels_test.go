@@ -3,7 +3,7 @@ package logger
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/golib/assert"
 )
 
 func Test_Level_String(t *testing.T) {
