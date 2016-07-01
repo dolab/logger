@@ -28,6 +28,7 @@ var (
 		Lfatal: colorize.New("red"),
 		Lpanic: colorize.New("red"),
 		Ltrace: colorize.New("green"),
+		Llog:   colorize.New("black"),
 	}
 )
 
@@ -251,6 +252,18 @@ func (l *Logger) Output(level Level, s string) error {
 // Write implements io.Writer interface
 func (l *Logger) Write(b []byte) (int, error) {
 	return l.out.Write(b)
+}
+
+// Print calls l.Output to print to the logger.
+// Arguments are handled in the manner of fmt.Print.
+func (l *Logger) Print(v ...interface{}) {
+	l.Output(Llog, fmt.Sprint(v...))
+}
+
+// Print calls l.Output to print to the logger.
+// Arguments are handled in the manner of fmt.Printf.
+func (l *Logger) Printf(format string, v ...interface{}) {
+	l.Output(Llog, fmt.Sprintf(format, v...))
 }
 
 // Debug calls l.Output to print to the logger.
