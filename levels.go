@@ -13,6 +13,7 @@ const (
 	Lfatal
 	Lpanic
 	Ltrace
+	Llog
 	lmax
 )
 
@@ -26,6 +27,7 @@ var (
 		Lfatal: "FATAL",
 		Lpanic: "PANIC",
 		Ltrace: "Stack",
+		Llog:   "LOG",
 	}
 )
 
@@ -66,6 +68,9 @@ func ResolveLevelByName(name string) Level {
 
 	case "STACK":
 		return Ltrace
+
+	case "LOG":
+		return Llog
 
 	}
 
