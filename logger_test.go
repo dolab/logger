@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -184,6 +185,32 @@ func Benchmark_Logger_Stdlib(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		log.Println("Hello, logger!")
 	}
+}
+
+func Test_Logger_Lock(t *testing.T) {
+	logger, _ := New("stdout")
+	logger.SetSkip(1)
+
+	var (
+		wg sync.WaitGroup
+
+		routines = 10
+	)
+	wg.Add(routines)
+
+	for i := 0; i < routines; i++ {
+		go func(routine int) {
+			defer wg.Done()
+
+			log := logger.New()
+			assert.NotContains(t, strings.Join(log.Tags(), ", "), "new logger")
+
+			log.SetTags("new logger")
+			assert.Contains(t, strings.Join(log.Tags(), ", "), "new logger")
+		}(i)
+	}
+
+	wg.Wait()
 }
 
 func Test_Logger_Racy(t *testing.T) {

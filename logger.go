@@ -89,13 +89,9 @@ func New(output string) (*Logger, error) {
 
 // New allocates a new Logger for given tags with shared output
 func (l *Logger) New(tags ...string) *Logger {
-	l.mux.Lock()
-
 	tmp := *l
 	tmp.buf = bytes.NewBuffer(nil)
 	tmp.tags = tags
-
-	l.mux.Unlock()
 
 	return &tmp
 }
