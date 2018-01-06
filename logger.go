@@ -229,6 +229,10 @@ func (l *Logger) Output(level Level, s string) error {
 		}
 	}
 
+	// avoid data race
+	l.mux.Lock()
+	defer l.mux.Unlock()
+
 	if l.buf == nil {
 		l.buf = bytes.NewBuffer(nil)
 	}
@@ -403,6 +407,10 @@ func (l *Logger) Panicf(format string, v ...interface{}) {
 // Arguments are handled in the manner of fmt.Print.
 func (l *Logger) Trace(v ...interface{}) {
 	l.Output(Ltrace, fmt.Sprint(v...))
+
+	// avoid data race
+	l.mux.Lock()
+	defer l.mux.Unlock()
 
 	// process stacks
 	buf := make([]byte, 1<<20)

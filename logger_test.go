@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -217,17 +216,18 @@ func Test_Logger_Racy(t *testing.T) {
 	logger, _ := New("stdout")
 	logger.SetSkip(1)
 
-	routines := 10
+	var (
+		wg sync.WaitGroup
 
-	var wg sync.WaitGroup
+		routines = 10
+	)
 	wg.Add(routines)
 
 	for i := 0; i < routines; i++ {
 		go func(routine int) {
 			defer wg.Done()
 
-			log := logger.New("routine@#" + strconv.Itoa(routine))
-			log.Infof("[OK] #%d", routine)
+			logger.Infof("[OK] routine@#%d", routine)
 		}(i)
 	}
 
