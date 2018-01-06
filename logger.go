@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -32,37 +31,38 @@ var (
 )
 
 type Logger struct {
-	mux sync.Mutex
-	out io.Writer
-	buf []byte
+	mux sync.RWMutex
 
-	level Level
-	tags  []string
-	flag  int
-	skip  int
-	color bool
+	out io.Writer
+	buf *bytes.Buffer
+
+	level    Level
+	tags     []string
+	flag     int
+	skip     int
+	colorful bool
 }
 
-// Create a logger with the requested output. (default to stderr)
-// Available output are [stdout|stderr|null|nil|path/to/file]
+// New creates a logger with the requested output. (default to stderr)
+// NOTE: available outputs are [stdout|stderr|null|nil|path/to/file]
 func New(output string) (*Logger, error) {
 	colorful := (runtime.GOOS != "windows")
 
 	switch output {
 	case "stdout":
 		return &Logger{
-			out:   os.Stdout,
-			flag:  flag,
-			skip:  2,
-			color: colorful,
+			out:      os.Stdout,
+			flag:     flag,
+			skip:     2,
+			colorful: colorful,
 		}, nil
 
 	case "stderr":
 		return &Logger{
-			out:   os.Stderr,
-			flag:  flag,
-			skip:  2,
-			color: colorful,
+			out:      os.Stderr,
+			flag:     flag,
+			skip:     2,
+			colorful: colorful,
 		}, nil
 
 	default:
@@ -76,23 +76,25 @@ func New(output string) (*Logger, error) {
 		}
 
 		return &Logger{
-			out:   file,
-			flag:  flag,
-			skip:  2,
-			color: false,
+			out:      file,
+			flag:     flag,
+			skip:     2,
+			colorful: false,
 		}, nil
 	}
 
 	return nil, ErrOutput
 }
 
-// New allocates a new Logger with given tags
+// New allocates a new Logger for given tags with shared output
 func (l *Logger) New(tags ...string) *Logger {
+	l.mux.Lock()
+
 	tmp := *l
-	tmp.mux.Lock()
-	tmp.buf = tmp.buf[:0]
+	tmp.buf = bytes.NewBuffer(nil)
 	tmp.tags = tags
-	tmp.mux.Unlock()
+
+	l.mux.Unlock()
 
 	return &tmp
 }
@@ -190,7 +192,7 @@ func (l *Logger) Skip() int {
 // SetColor sets whether output logs with colorful
 func (l *Logger) SetColor(colorful bool) {
 	l.mux.Lock()
-	l.color = colorful
+	l.colorful = colorful
 	l.mux.Unlock()
 }
 
@@ -210,41 +212,49 @@ func (l *Logger) Output(level Level, s string) error {
 		return ErrLevel
 	}
 
-	l.mux.Lock()
-	defer l.mux.Unlock()
-
 	var (
-		file string
-		line int
-		ok   bool
+		file                  string
+		line                  int
+		ok                    bool
+		err                   error
+		colorDraw, colorClean string
 	)
 
-	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
-		// release lock while getting caller info - it's expensive.
-		l.mux.Unlock()
+	if l.colorful {
+		colorDraw, colorClean = brushes[level].Colour()
+	}
 
+	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
 		_, file, line, ok = runtime.Caller(l.skip)
 		if !ok {
 			file = "???"
 			line = 0
 		}
-
-		l.mux.Lock()
 	}
 
-	l.buf = l.buf[:0]
-	l.formatHeader(level, file, line, &l.buf)
-	l.buf = append(l.buf, s...)
+	if l.buf == nil {
+		l.buf = bytes.NewBuffer(nil)
+	}
 
-	// append newline if needs
+	// try to flush old data
+	if l.buf.Len() > 0 {
+		l.buf.WriteTo(l.out)
+	}
+	l.buf.Reset()
+
+	l.buf.WriteString(colorDraw)
+
+	l.formatHeader(level, file, line, l.buf)
+	l.buf.WriteString(s)
+
+	// adjust newline if needs
 	if len(s) > 0 && s[len(s)-1] != '\n' {
-		l.buf = append(l.buf, '\n')
+		l.buf.WriteByte('\n')
 	}
 
-	if l.color {
-		l.buf = []byte(brushes[level].Paint(string(l.buf)))
-	}
-	_, err := l.Write(l.buf)
+	l.buf.WriteString(colorClean)
+
+	_, err = l.buf.WriteTo(l.out)
 	return err
 }
 
@@ -387,27 +397,27 @@ func (l *Logger) Trace(v ...interface{}) {
 
 	// process stacks
 	brush := brushes[Ltrace]
-	buf := make([]byte, 1024*1024)
+	buf := make([]byte, 1<<20)
 	n := runtime.Stack(buf, true)
 
 	scanner := bufio.NewScanner(bytes.NewReader(buf[:n]))
 	for scanner.Scan() {
 		line := scanner.Text()
-
-		if l.color {
+		if l.colorful {
 			line = brush.Paint(line)
 		}
 
-		l.buf = append(l.buf, line...)
-		l.buf = append(l.buf, '\n')
+		l.buf.WriteString(line)
+		l.buf.WriteByte('\n')
 	}
 
-	l.out.Write([]byte(string(l.buf)))
+	l.buf.WriteTo(l.out)
+
 	os.Exit(1)
 }
 
 // Modified from src/log/log.go
-func (l *Logger) formatHeader(level Level, file string, line int, buf *[]byte) {
+func (l *Logger) formatHeader(level Level, file string, line int, buf *bytes.Buffer) {
 	t := time.Now()
 
 	if l.flag&(log.Ldate|log.Ltime|log.Lmicroseconds) != 0 {
@@ -415,43 +425,43 @@ func (l *Logger) formatHeader(level Level, file string, line int, buf *[]byte) {
 			year, month, day := t.Date()
 
 			itoa(buf, year, 4)
-			*buf = append(*buf, '/')
+			l.buf.WriteByte('/')
 
 			itoa(buf, int(month), 2)
-			*buf = append(*buf, '/')
+			l.buf.WriteByte('/')
 
 			itoa(buf, day, 2)
 		}
 
 		if l.flag&(log.Ltime|log.Lmicroseconds) != 0 {
-			*buf = append(*buf, ' ')
+			l.buf.WriteByte(' ')
 
 			hour, min, sec := t.Clock()
 
 			itoa(buf, hour, 2)
-			*buf = append(*buf, ':')
+			l.buf.WriteByte(':')
 
 			itoa(buf, min, 2)
-			*buf = append(*buf, ':')
+			l.buf.WriteByte(':')
 
 			itoa(buf, sec, 2)
 			if l.flag&log.Lmicroseconds != 0 {
-				*buf = append(*buf, '.')
+				l.buf.WriteByte('.')
 				itoa(buf, t.Nanosecond()/1e3, 6)
 			}
 		}
 
-		*buf = append(*buf, " - "...)
+		l.buf.WriteString(" - ")
 	}
 
-	*buf = append(*buf, '[')
-	*buf = append(*buf, level.String()...)
-	if len(l.tags) > 0 {
-		*buf = append(*buf, ", "...)
-		*buf = append(*buf, strings.Join(l.tags, ", ")...)
+	l.buf.WriteByte('[')
+	l.buf.WriteString(level.String())
+	for _, tag := range l.tags {
+		l.buf.WriteString(", ")
+		l.buf.WriteString(tag)
 	}
-	*buf = append(*buf, ']')
-	*buf = append(*buf, " - "...)
+	l.buf.WriteByte(']')
+	l.buf.WriteString(" - ")
 
 	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
 		short := file
@@ -471,25 +481,26 @@ func (l *Logger) formatHeader(level Level, file string, line int, buf *[]byte) {
 			}
 		}
 
-		*buf = append(*buf, short...)
-		*buf = append(*buf, ':')
+		l.buf.WriteString(short)
+		l.buf.WriteByte(':')
 		itoa(buf, line, -1)
-		*buf = append(*buf, ": "...)
+		l.buf.WriteString(": ")
 	}
 }
 
 // Cheap integer to fixed-width decimal ASCII.
 // Give a negative width to avoid zero-padding.
 // Knows the buffer has capacity.
-func itoa(buf *[]byte, i int, wid int) {
-	var u uint = uint(i)
+func itoa(buf *bytes.Buffer, i int, wid int) {
+	var u = uint(i)
 	if u == 0 && wid <= 1 {
-		*buf = append(*buf, '0')
+		buf.WriteByte('0')
 		return
 	}
 
 	// Assemble decimal in reverse order.
 	var b [32]byte
+
 	bp := len(b)
 	for ; u > 0 || wid > 0; u /= 10 {
 		bp--
@@ -497,5 +508,5 @@ func itoa(buf *[]byte, i int, wid int) {
 		b[bp] = byte(u%10) + '0'
 	}
 
-	*buf = append(*buf, b[bp:]...)
+	buf.Write(b[bp:])
 }
