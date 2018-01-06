@@ -396,18 +396,12 @@ func (l *Logger) Trace(v ...interface{}) {
 	l.Output(Ltrace, fmt.Sprint(v...))
 
 	// process stacks
-	brush := brushes[Ltrace]
 	buf := make([]byte, 1<<20)
 	n := runtime.Stack(buf, true)
 
 	scanner := bufio.NewScanner(bytes.NewReader(buf[:n]))
 	for scanner.Scan() {
-		line := scanner.Text()
-		if l.colorful {
-			line = brush.Paint(line)
-		}
-
-		l.buf.WriteString(line)
+		l.buf.WriteString(scanner.Text())
 		l.buf.WriteByte('\n')
 	}
 
