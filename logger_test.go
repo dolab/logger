@@ -2,7 +2,11 @@ package logger
 
 import (
 	"io"
+	"io/ioutil"
+	"log"
 	"os"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/golib/assert"
@@ -70,40 +74,6 @@ func Test_Logger_NewWithTags(t *testing.T) {
 	os.Stdout = stdout
 }
 
-func Test_Logger_Output(t *testing.T) {
-	// mock os.Stdout
-	stdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	s := "output testing"
-	expected := s + "\n"
-	testCases := map[Level]string{
-		Ldebug: "[DEBUG]",
-		Linfo:  "[INFO]",
-		Lwarn:  "[WARN]",
-		Lerror: "[ERROR]",
-		Lfatal: "[FATAL]",
-		Lpanic: "[PANIC]",
-		Ltrace: "[Stack]",
-	}
-
-	logger, _ := New("stdout")
-	logger.SetSkip(1)
-
-	for level, tag := range testCases {
-		logger.Output(level, s)
-
-		buf := make([]byte, 1024)
-		n, err := r.Read(buf)
-		assert.Nil(t, err)
-		assert.Contains(t, string(buf[:n]), tag)
-		assert.Contains(t, string(buf[:n]), expected)
-	}
-
-	os.Stdout = stdout
-}
-
 func Test_Logger_SetTags(t *testing.T) {
 	// mock os.Stdout
 	stdout := os.Stdout
@@ -152,4 +122,87 @@ func Test_Logger_AddTags(t *testing.T) {
 	assert.Contains(t, string(buf[:n]), expected)
 
 	os.Stdout = stdout
+}
+
+func Test_Logger_Output(t *testing.T) {
+	// mock os.Stdout
+	stdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	s := "output testing"
+	expected := s + "\n"
+	testCases := map[Level]string{
+		Ldebug: "[DEBUG]",
+		Linfo:  "[INFO]",
+		Lwarn:  "[WARN]",
+		Lerror: "[ERROR]",
+		Lfatal: "[FATAL]",
+		Lpanic: "[PANIC]",
+		Ltrace: "[Stack]",
+	}
+
+	logger, _ := New("stdout")
+	logger.SetSkip(1)
+
+	for level, tag := range testCases {
+		logger.Output(level, s)
+
+		buf := make([]byte, 1024)
+		n, err := r.Read(buf)
+		assert.Nil(t, err)
+		assert.Contains(t, string(buf[:n]), tag)
+		assert.Contains(t, string(buf[:n]), expected)
+	}
+
+	os.Stdout = stdout
+
+	logger.Output(Linfo, "Hello, logger!")
+	logger.Output(Linfo, "Hello, logger!")
+}
+
+func Benchmark_Logger_Output(b *testing.B) {
+	logger, _ := New("stderr")
+	logger.SetSkip(1)
+	logger.SetColor(false)
+	logger.Output(Linfo, "Hello, logger!")
+
+	logger.SetOutput(ioutil.Discard)
+
+	for i := 0; i < b.N; i++ {
+		logger.Output(Linfo, "Hello, logger!")
+	}
+}
+
+func Benchmark_Logger_Stdlib(b *testing.B) {
+	log.SetFlags(log.Llongfile | log.Ltime)
+	log.SetPrefix("[INFO]")
+	log.Println("Hello, logger!")
+
+	log.SetOutput(ioutil.Discard)
+
+	for i := 0; i < b.N; i++ {
+		log.Println("Hello, logger!")
+	}
+}
+
+func Test_Logger_Racy(t *testing.T) {
+	logger, _ := New("stdout")
+	logger.SetSkip(1)
+
+	routines := 10
+
+	var wg sync.WaitGroup
+	wg.Add(routines)
+
+	for i := 0; i < routines; i++ {
+		go func(routine int) {
+			defer wg.Done()
+
+			log := logger.New("routine@#" + strconv.Itoa(routine))
+			log.Infof("[OK] #%d", routine)
+		}(i)
+	}
+
+	wg.Wait()
 }
