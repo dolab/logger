@@ -83,8 +83,6 @@ func New(output string) (*Logger, error) {
 			colorful: false,
 		}, nil
 	}
-
-	return nil, ErrOutput
 }
 
 // New allocates a new Logger for given tags with shared output
