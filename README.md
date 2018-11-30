@@ -23,7 +23,7 @@ go get -u github.com/dolab/logger
 import "github.com/dolab/logger"
 
 func main() {
-    log := logger.New("stdout")
+    log, _ := logger.New("stdout")
     log.SetLevel(logger.Ldebug)
 
     // normal

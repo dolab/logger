@@ -5,6 +5,5 @@ import (
 )
 
 var (
-	ErrOutput = errors.New("Unsupported output")
-	ErrLevel  = errors.New("Invalid level")
+	ErrLevel = errors.New("Invalid level")
 )
