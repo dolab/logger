@@ -1,0 +1,50 @@
+# Golang CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-go/ for more details
+version: 2.1
+defaults: &defaults
+  #### TEMPLATE_NOTE: go expects specific checkout path representing url
+  #### expecting it in the form of
+  ####   /go/src/github.com/circleci/go-tool
+  ####   /go/src/bitbucket.org/circleci/go-tool
+  working_directory: github.com/dolab/httpmitm
+  parallelism: 2
+default_steps: &default_steps
+  steps:
+    - checkout # checkout source code
+
+    # specify any bash command here prefixed with `run: `
+    - run: git submodule update --init
+    - run: go test -v -timeout 30s github.com/dolab/logger
+    - run: go test -v -race -timeout 30s github.com/dolab/logger
+jobs:
+  go1-24:
+    <<: *defaults
+    docker:
+      # specify the version
+      - image: cimg/go:1.24
+
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/postgres:9.4
+    <<: *default_steps
+  go1-19:
+    <<: *defaults
+    docker:
+      # specify the version
+      - image: cimg/go:1.19
+
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/postgres:9.4
+    <<: *default_steps
+
+workflows:
+  version: 2.1
+  build_and_test:
+    jobs:
+      - go1-24
+      #- go1-19
+

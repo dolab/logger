@@ -47,7 +47,7 @@ type Logger struct {
 // New creates a logger with the requested output. (default to stderr)
 // NOTE: available outputs are [stdout|stderr|null|nil|path/to/file]
 func New(output string) (*Logger, error) {
-	colorful := (runtime.GOOS != "windows")
+	colorful := runtime.GOOS != "windows"
 
 	switch output {
 	case "stdout":
@@ -73,7 +73,7 @@ func New(output string) (*Logger, error) {
 
 		file, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to open log file %s: %v", output, err)
+			return nil, fmt.Errorf("failed to open log file %s: %v", output, err)
 		}
 
 		return &Logger{
@@ -85,13 +85,34 @@ func New(output string) (*Logger, error) {
 	}
 }
 
-// New allocates a new Logger for given tags with shared output
+// New allocates a new Logger for given tags shared.
 func (l *Logger) New(tags ...string) *Logger {
-	tmp := *l
-	tmp.buf = bytes.NewBuffer(nil)
-	tmp.tags = tags
+	return &Logger{
+		mux:      sync.RWMutex{},
+		out:      l.out,
+		buf:      bytes.NewBuffer(nil),
+		level:    l.level,
+		tags:     tags,
+		flag:     l.flag,
+		skip:     l.skip,
+		colorful: l.colorful,
+	}
+}
 
-	return &tmp
+// NewTextLogger returns a new StructLogger with text formatter.
+func (l *Logger) NewTextLogger() StructLogger {
+	return &structLog{
+		writer: l.output,
+		format: TextFormat,
+	}
+}
+
+// NewJsonLogger returns a new StructLogger with json formatter.
+func (l *Logger) NewJsonLogger() StructLogger {
+	return &structLog{
+		writer: l.output,
+		format: JSONFormat,
+	}
 }
 
 // SetLevel sets min level of output
@@ -137,7 +158,7 @@ func (l *Logger) SetTags(tags ...string) {
 // AddTags adds new tags to all logs, duplicated tags will be ignored.
 func (l *Logger) AddTags(tags ...string) {
 	l.mux.Lock()
-	newTags := []string{}
+	var newTags []string
 	for _, tag := range tags {
 		found := false
 		for _, existedTag := range l.tags {
@@ -202,9 +223,13 @@ func (l *Logger) SetOutput(w io.Writer) {
 // The string s contains the text to print after the tags specified
 // by the flags of the Logger.
 // A newline is appended if the last character of s is not already a newline.
-func (l *Logger) Output(level Level, s string) error {
+func (l *Logger) Output(level Level, msg string) error {
+	return l.output(level, nil, msg)
+}
+
+func (l *Logger) output(level Level, as *attrs, msg string) error {
 	if !level.IsValid() {
-		return ErrLevel
+		level = Linfo
 	}
 
 	var (
@@ -216,7 +241,8 @@ func (l *Logger) Output(level Level, s string) error {
 	)
 
 	if l.colorful {
-		colorDraw, colorClean = brushes[level].Colour()
+		brush := brushes[level]
+		colorDraw, colorClean = brush.Colour()
 	}
 
 	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
@@ -243,11 +269,22 @@ func (l *Logger) Output(level Level, s string) error {
 
 	l.buf.WriteString(colorDraw)
 
-	l.formatHeader(level, file, line, l.buf)
-	l.buf.WriteString(s)
+	l.formatHeader(level, file, line)
+	if as != nil {
+		switch as.format {
+		case TextFormat:
+			l.buf.WriteString(as.String())
+			l.buf.WriteString(", ")
+			l.buf.WriteString("msg=")
+		case JSONFormat:
+			l.buf.WriteString(as.JSONString())
+			l.buf.WriteString(" ")
+		}
+	}
+	l.buf.WriteString(msg)
 
-	// adjust newline if needs
-	if len(s) > 0 && s[len(s)-1] != '\n' {
+	// adjust newline if it needs
+	if len(msg) > 0 && msg[len(msg)-1] != '\n' {
 		l.buf.WriteByte('\n')
 	}
 
@@ -264,19 +301,19 @@ func (l *Logger) Write(b []byte) (int, error) {
 
 // Print calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Print(v ...interface{}) {
+func (l *Logger) Print(v ...any) {
 	l.Output(Llog, fmt.Sprint(v...))
 }
 
-// Print calls l.Output to print to the logger.
+// Printf calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Printf.
-func (l *Logger) Printf(format string, v ...interface{}) {
+func (l *Logger) Printf(format string, v ...any) {
 	l.Output(Llog, fmt.Sprintf(format, v...))
 }
 
 // Debug calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Debug(v ...interface{}) {
+func (l *Logger) Debug(v ...any) {
 	if l.level > Ldebug {
 		return
 	}
@@ -286,7 +323,7 @@ func (l *Logger) Debug(v ...interface{}) {
 
 // Debugf calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Printf.
-func (l *Logger) Debugf(format string, v ...interface{}) {
+func (l *Logger) Debugf(format string, v ...any) {
 	if l.level > Ldebug {
 		return
 	}
@@ -296,7 +333,7 @@ func (l *Logger) Debugf(format string, v ...interface{}) {
 
 // Info calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Info(v ...interface{}) {
+func (l *Logger) Info(v ...any) {
 	if l.level > Linfo {
 		return
 	}
@@ -306,7 +343,7 @@ func (l *Logger) Info(v ...interface{}) {
 
 // Infof calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Printf.
-func (l *Logger) Infof(format string, v ...interface{}) {
+func (l *Logger) Infof(format string, v ...any) {
 	if l.level > Linfo {
 		return
 	}
@@ -316,7 +353,7 @@ func (l *Logger) Infof(format string, v ...interface{}) {
 
 // Warn calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Warn(v ...interface{}) {
+func (l *Logger) Warn(v ...any) {
 	if l.level > Lwarn {
 		return
 	}
@@ -326,7 +363,7 @@ func (l *Logger) Warn(v ...interface{}) {
 
 // Warnf calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Printf.
-func (l *Logger) Warnf(format string, v ...interface{}) {
+func (l *Logger) Warnf(format string, v ...any) {
 	if l.level > Lwarn {
 		return
 	}
@@ -336,7 +373,7 @@ func (l *Logger) Warnf(format string, v ...interface{}) {
 
 // Error calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Error(v ...interface{}) {
+func (l *Logger) Error(v ...any) {
 	if l.level > Lerror {
 		return
 	}
@@ -346,7 +383,7 @@ func (l *Logger) Error(v ...interface{}) {
 
 // Errorf calls l.Output to print to the logger.
 // Arguments are handled in the manner of fmt.Printf.
-func (l *Logger) Errorf(format string, v ...interface{}) {
+func (l *Logger) Errorf(format string, v ...any) {
 	if l.level > Lerror {
 		return
 	}
@@ -356,7 +393,7 @@ func (l *Logger) Errorf(format string, v ...interface{}) {
 
 // Fatal calls l.Output to print to the logger and exit process with sign 1.
 // Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Fatal(v ...interface{}) {
+func (l *Logger) Fatal(v ...any) {
 	if l.level > Lfatal {
 		return
 	}
@@ -367,7 +404,7 @@ func (l *Logger) Fatal(v ...interface{}) {
 
 // Fatalf calls l.Output to print to the logger and exit process with sign 1.
 // Arguments are handled in the manner of fmt.Printf.
-func (l *Logger) Fatalf(format string, v ...interface{}) {
+func (l *Logger) Fatalf(format string, v ...any) {
 	if l.level > Lfatal {
 		return
 	}
@@ -378,7 +415,7 @@ func (l *Logger) Fatalf(format string, v ...interface{}) {
 
 // Panic calls l.Output to print to the logger and panic process.
 // Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Panic(v ...interface{}) {
+func (l *Logger) Panic(v ...any) {
 	if l.level > Lpanic {
 		return
 	}
@@ -390,7 +427,7 @@ func (l *Logger) Panic(v ...interface{}) {
 
 // Panicf calls l.Output to print to the logger and panic process.
 // Arguments are handled in the manner of fmt.Printf.
-func (l *Logger) Panicf(format string, v ...interface{}) {
+func (l *Logger) Panicf(format string, v ...any) {
 	if l.level > Lpanic {
 		return
 	}
@@ -403,7 +440,7 @@ func (l *Logger) Panicf(format string, v ...interface{}) {
 // Trace calls l.Output to print to the logger and output process stacks,
 // and exit process with sign 1 at last.
 // Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Trace(v ...interface{}) {
+func (l *Logger) Trace(v ...any) {
 	l.Output(Ltrace, fmt.Sprint(v...))
 
 	// avoid data race
@@ -426,37 +463,37 @@ func (l *Logger) Trace(v ...interface{}) {
 }
 
 // Modified from src/log/log.go
-func (l *Logger) formatHeader(level Level, file string, line int, buf *bytes.Buffer) {
+func (l *Logger) formatHeader(level Level, file string, line int) {
 	t := time.Now()
 
 	if l.flag&(log.Ldate|log.Ltime|log.Lmicroseconds) != 0 {
 		if l.flag&log.Ldate != 0 {
 			year, month, day := t.Date()
 
-			itoa(buf, year, 4)
+			itoa(l.buf, year, 4)
 			l.buf.WriteByte('/')
 
-			itoa(buf, int(month), 2)
+			itoa(l.buf, int(month), 2)
 			l.buf.WriteByte('/')
 
-			itoa(buf, day, 2)
+			itoa(l.buf, day, 2)
 		}
 
 		if l.flag&(log.Ltime|log.Lmicroseconds) != 0 {
 			l.buf.WriteByte(' ')
 
-			hour, min, sec := t.Clock()
+			hour, minute, sec := t.Clock()
 
-			itoa(buf, hour, 2)
+			itoa(l.buf, hour, 2)
 			l.buf.WriteByte(':')
 
-			itoa(buf, min, 2)
+			itoa(l.buf, minute, 2)
 			l.buf.WriteByte(':')
 
-			itoa(buf, sec, 2)
+			itoa(l.buf, sec, 2)
 			if l.flag&log.Lmicroseconds != 0 {
 				l.buf.WriteByte('.')
-				itoa(buf, t.Nanosecond()/1e3, 6)
+				itoa(l.buf, t.Nanosecond()/1e3, 6)
 			}
 		}
 
@@ -492,7 +529,7 @@ func (l *Logger) formatHeader(level Level, file string, line int, buf *bytes.Buf
 
 		l.buf.WriteString(short)
 		l.buf.WriteByte(':')
-		itoa(buf, line, -1)
+		itoa(l.buf, line, -1)
 		l.buf.WriteString(": ")
 	}
 }

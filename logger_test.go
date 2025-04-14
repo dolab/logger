@@ -2,7 +2,6 @@ package logger
 
 import (
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -167,7 +166,7 @@ func Benchmark_Logger_Output(b *testing.B) {
 	logger.SetColor(false)
 	logger.Output(Linfo, "Hello, logger!")
 
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 
 	for i := 0; i < b.N; i++ {
 		logger.Output(Linfo, "Hello, logger!")
@@ -179,7 +178,7 @@ func Benchmark_Logger_Stdlib(b *testing.B) {
 	log.SetPrefix("[INFO]")
 	log.Println("Hello, logger!")
 
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	for i := 0; i < b.N; i++ {
 		log.Println("Hello, logger!")
