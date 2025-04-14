@@ -236,7 +236,6 @@ func (l *Logger) output(level Level, as *attrs, msg string) error {
 		file                  string
 		line                  int
 		ok                    bool
-		err                   error
 		colorDraw, colorClean string
 	)
 
@@ -290,7 +289,12 @@ func (l *Logger) output(level Level, as *attrs, msg string) error {
 
 	l.buf.WriteString(colorClean)
 
-	_, err = l.buf.WriteTo(l.out)
+	if as != nil && len(as.stacks) > 0 {
+		l.buf.Write(as.stacks)
+		l.buf.WriteByte('\n')
+	}
+
+	_, err := l.buf.WriteTo(l.out)
 	return err
 }
 

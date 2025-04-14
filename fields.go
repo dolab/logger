@@ -26,14 +26,17 @@ func String(key, value string) Attr {
 }
 
 // Bool is shortcut for bool field option.
-// NOTE: It translate bool to string, such as true="true", false="false".
 func Bool(key string, value bool) Attr {
 	return func(as *attrs) {
-		if value {
-			as.fields[key] = "true"
-		} else {
-			as.fields[key] = "false"
-		}
+		as.fields[key] = value
+	}
+}
+
+// Err is shortcut for error field option.
+// NOTE: It uses error for the key forced!
+func Err(err error) Attr {
+	return func(as *attrs) {
+		as.fields["error"] = err.Error()
 	}
 }
 
@@ -47,6 +50,7 @@ func Any(key string, value any) Attr {
 type attrs struct {
 	format Formatter
 	fields map[string]any
+	stacks []byte
 }
 
 func (as attrs) String() string {

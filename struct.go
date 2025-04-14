@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"runtime/debug"
 )
 
 // StructLogger for well formatted
@@ -11,6 +12,7 @@ type (
 		Bool(key string, value bool) StructLogger
 		Any(key string, value any) StructLogger
 		With(fields map[string]any) StructLogger
+		Err(err error, stack bool) StructLogger
 		Debug(msg string)
 		Debugf(format string, args ...any)
 		Info(msg string)
@@ -34,6 +36,7 @@ type structLog struct {
 	writer func(level Level, as *attrs, msg string) error
 	format Formatter
 	attrs  []Attr
+	stacks []byte
 }
 
 func (log *structLog) Str(key, value string) StructLogger {
@@ -48,6 +51,14 @@ func (log *structLog) Bool(key string, value bool) StructLogger {
 
 func (log *structLog) Any(key string, value any) StructLogger {
 	log.attrs = append(log.attrs, Any(key, value))
+	return log
+}
+
+func (log *structLog) Err(err error, stack bool) StructLogger {
+	log.attrs = append(log.attrs, Err(err))
+	if stack {
+		log.stacks = debug.Stack()
+	}
 	return log
 }
 
@@ -72,6 +83,7 @@ func (log *structLog) fields() *attrs {
 	as := &attrs{
 		format: log.format,
 		fields: make(map[string]any),
+		stacks: log.stacks,
 	}
 	for _, attr := range log.attrs {
 		attr(as)
