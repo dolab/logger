@@ -269,7 +269,7 @@ func (l *Logger) output(level Level, as *attrs, msg string) error {
 	l.buf.WriteString(colorDraw)
 
 	l.formatHeader(level, file, line)
-	if as != nil {
+	if as.IsValid() {
 		switch as.format {
 		case TextFormat:
 			l.buf.WriteString(as.String())

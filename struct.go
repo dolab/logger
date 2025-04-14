@@ -10,9 +10,10 @@ type (
 	StructLogger interface {
 		Str(key, value string) StructLogger
 		Bool(key string, value bool) StructLogger
-		Any(key string, value any) StructLogger
-		With(fields map[string]any) StructLogger
 		Err(err error, stack bool) StructLogger
+		Any(key string, value any) StructLogger
+		Fields(fields map[string]any) StructLogger
+
 		Debug(msg string)
 		Debugf(format string, args ...any)
 		Info(msg string)
@@ -55,6 +56,10 @@ func (log *structLog) Any(key string, value any) StructLogger {
 }
 
 func (log *structLog) Err(err error, stack bool) StructLogger {
+	if err == nil {
+		return log
+	}
+
 	log.attrs = append(log.attrs, Err(err))
 	if stack {
 		log.stacks = debug.Stack()
@@ -62,7 +67,7 @@ func (log *structLog) Err(err error, stack bool) StructLogger {
 	return log
 }
 
-func (log *structLog) With(fields map[string]any) StructLogger {
+func (log *structLog) Fields(fields map[string]any) StructLogger {
 	for k, v := range fields {
 		switch t := v.(type) {
 		case string:
@@ -71,6 +76,8 @@ func (log *structLog) With(fields map[string]any) StructLogger {
 			log.Str(k, string(t))
 		case bool:
 			log.Bool(k, t)
+		case error:
+			log.Err(t, k == "true")
 		default:
 			log.Any(k, t)
 		}

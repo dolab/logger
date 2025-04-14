@@ -53,7 +53,15 @@ type attrs struct {
 	stacks []byte
 }
 
-func (as attrs) String() string {
+func (as *attrs) IsValid() bool {
+	if as == nil {
+		return false
+	}
+
+	return len(as.fields) > 0
+}
+
+func (as *attrs) String() string {
 	var buf bytes.Buffer
 	n := len(as.fields)
 	for k, v := range as.fields {
@@ -84,7 +92,7 @@ func (as attrs) String() string {
 	return buf.String()
 }
 
-func (as attrs) JSONString() string {
+func (as *attrs) JSONString() string {
 	b, _ := json.Marshal(as.fields)
 	return string(b)
 }

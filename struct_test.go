@@ -94,3 +94,13 @@ func Test_Logger_Error(t *testing.T) {
 
 	os.Stdout = stdout
 }
+
+func Test_Logger_Panic(t *testing.T) {
+	logger, _ := New("stdout")
+	assert.NotPanics(t, func() {
+		logger.NewJsonLogger().Bool("key", true).Any("nil", nil).Err(nil, true).Error("panic")
+	})
+	assert.NotPanics(t, func() {
+		logger.NewTextLogger().Bool("key", false).Any("nil", nil).Err(nil, true).Error("panic")
+	})
+}
