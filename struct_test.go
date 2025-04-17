@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/golib/assert"
 )
@@ -24,7 +25,7 @@ func Test_Logger_NewTextLogger(t *testing.T) {
 	logger.SetTags(tags...)
 	logger.AddTags(newTags...)
 
-	logger.NewTextLogger().Str("key", "value").Bool("bool", true).Debug(s)
+	logger.NewTextLogger().Str("key", "value").Bool("bool", true).Duration("cost", 2*time.Second).Debug(s)
 
 	buf := make([]byte, 1024)
 	n, err := r.Read(buf)
@@ -32,6 +33,7 @@ func Test_Logger_NewTextLogger(t *testing.T) {
 	assert.Contains(t, string(buf[:n]), expected)
 	assert.Contains(t, string(buf[:n]), "key=value,")
 	assert.Contains(t, string(buf[:n]), "bool=true,")
+	assert.Contains(t, string(buf[:n]), "cost=2s,")
 	assert.Contains(t, string(buf[:n]), "msg=output testing")
 
 	os.Stdout = stdout
@@ -53,13 +55,13 @@ func Test_Logger_NewJsonLogger(t *testing.T) {
 	logger.SetTags(tags...)
 	logger.AddTags(newTags...)
 
-	logger.NewJsonLogger().Str("key", "value").Bool("bool", true).Debug(s)
+	logger.NewJsonLogger().Str("key", "value").Bool("bool", true).Duration("cost", 2*time.Second).Debug(s)
 
 	buf := make([]byte, 1024)
 	n, err := r.Read(buf)
 	assert.Nil(t, err)
 	assert.Contains(t, string(buf[:n]), expected)
-	assert.Contains(t, string(buf[:n]), `{"bool":true,"key":"value"}`)
+	assert.Contains(t, string(buf[:n]), `{"bool":true,"cost":"2s","key":"value"}`)
 	assert.Contains(t, string(buf[:n]), "output testing")
 	assert.NotContains(t, string(buf[:n]), "msg=output testing")
 
