@@ -1,9 +1,7 @@
 package logger
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"runtime/debug"
 	"time"
 )
@@ -163,45 +161,4 @@ func (log *structLog) Panic(msg string) {
 
 func (log *structLog) Panicf(format string, args ...any) {
 	_ = log.writer(Lpanic, log.fields(), fmt.Sprintf(format, args...))
-}
-
-// Log drops in of slog.Log
-func (log *structLog) Log(ctx context.Context, slogLevel slog.Level, msg string, args ...any) {
-	var level = Ltrace
-	switch slogLevel {
-	case slog.LevelDebug:
-		level = Ldebug
-	case slog.LevelInfo:
-		level = Linfo
-	case slog.LevelWarn:
-		level = Lwarn
-	case slog.LevelError:
-		level = Lerror
-	}
-
-	_ = log.writer(level, &attrs{
-		format: log.format,
-		stacks: log.stacks,
-	}, fmt.Sprintf(msg, args...))
-}
-
-// LogAttrs drops in of slog.LogAttrs
-func (log *structLog) LogAttrs(ctx context.Context, slogLevel slog.Level, msg string, slogAttrs ...slog.Attr) {
-	var level = Ltrace
-	switch slogLevel {
-	case slog.LevelDebug:
-		level = Ldebug
-	case slog.LevelInfo:
-		level = Linfo
-	case slog.LevelWarn:
-		level = Lwarn
-	case slog.LevelError:
-		level = Lerror
-	}
-
-	_ = log.writer(level, &attrs{
-		format: log.format,
-		stacks: log.stacks,
-		fields: slogAttrs,
-	}, msg)
 }
