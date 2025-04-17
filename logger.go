@@ -100,18 +100,20 @@ func (l *Logger) New(tags ...string) *Logger {
 }
 
 // NewTextLogger returns a new StructLogger with text formatter.
-func (l *Logger) NewTextLogger() StructLogger {
+func (l *Logger) NewTextLogger(attrs ...Attr) StructLogger {
 	return &structLog{
 		writer: l.output,
 		format: TextFormat,
+		attrs:  attrs,
 	}
 }
 
 // NewJsonLogger returns a new StructLogger with json formatter.
-func (l *Logger) NewJsonLogger() StructLogger {
+func (l *Logger) NewJsonLogger(attrs ...Attr) StructLogger {
 	return &structLog{
 		writer: l.output,
 		format: JSONFormat,
+		attrs:  attrs,
 	}
 }
 

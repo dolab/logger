@@ -3,6 +3,7 @@ package logger
 import (
 	"fmt"
 	"runtime/debug"
+	"time"
 )
 
 // StructLogger for well formatted
@@ -10,6 +11,8 @@ type (
 	StructLogger interface {
 		Str(key, value string) StructLogger
 		Bool(key string, value bool) StructLogger
+		Duration(key string, value time.Duration) StructLogger
+		Time(key string, value time.Time) StructLogger
 		Err(err error, stack bool) StructLogger
 		Any(key string, value any) StructLogger
 		Fields(fields map[string]any) StructLogger
@@ -50,6 +53,16 @@ func (log *structLog) Bool(key string, value bool) StructLogger {
 	return log
 }
 
+func (log *structLog) Duration(key string, value time.Duration) StructLogger {
+	log.attrs = append(log.attrs, Duration(key, value))
+	return log
+}
+
+func (log *structLog) Time(key string, value time.Time) StructLogger {
+	log.attrs = append(log.attrs, Time(key, value))
+	return log
+}
+
 func (log *structLog) Any(key string, value any) StructLogger {
 	log.attrs = append(log.attrs, Any(key, value))
 	return log
@@ -76,6 +89,10 @@ func (log *structLog) Fields(fields map[string]any) StructLogger {
 			log.Str(k, string(t))
 		case bool:
 			log.Bool(k, t)
+		case time.Duration:
+			log.Duration(k, t)
+		case time.Time:
+			log.Time(k, t)
 		case error:
 			log.Err(t, k == "true")
 		default:
@@ -89,7 +106,6 @@ func (log *structLog) Fields(fields map[string]any) StructLogger {
 func (log *structLog) fields() *attrs {
 	as := &attrs{
 		format: log.format,
-		fields: make(map[string]any),
 		stacks: log.stacks,
 	}
 	for _, attr := range log.attrs {
