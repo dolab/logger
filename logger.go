@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,13 +30,18 @@ var (
 		Ltrace: colorize.New("green"),
 		Llog:   colorize.New("black"),
 	}
+
+	bufferPool = &sync.Pool{
+		New: func() interface{} {
+			return &bytes.Buffer{}
+		},
+	}
 )
 
 type Logger struct {
 	mux sync.RWMutex
 
 	out io.Writer
-	buf *bytes.Buffer
 
 	level    Level
 	tags     []string
@@ -90,7 +96,6 @@ func (l *Logger) New(tags ...string) *Logger {
 	return &Logger{
 		mux:      sync.RWMutex{},
 		out:      l.out,
-		buf:      bytes.NewBuffer(nil),
 		level:    l.level,
 		tags:     tags,
 		flag:     l.flag,
@@ -160,25 +165,18 @@ func (l *Logger) SetTags(tags ...string) {
 // AddTags adds new tags to all logs, duplicated tags will be ignored.
 func (l *Logger) AddTags(tags ...string) {
 	l.mux.Lock()
-	var newTags []string
+	defer l.mux.Unlock()
+
+	existingTags := make(map[string]bool)
+	for _, tag := range l.tags {
+		existingTags[tag] = true
+	}
+
 	for _, tag := range tags {
-		found := false
-		for _, existedTag := range l.tags {
-			if tag == existedTag {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			newTags = append(newTags, tag)
+		if !existingTags[tag] {
+			l.tags = append(l.tags, tag)
 		}
 	}
-
-	if len(newTags) > 0 {
-		l.tags = append(l.tags, newTags...)
-	}
-	l.mux.Unlock()
 }
 
 func (l *Logger) Tags() []string {
@@ -258,45 +256,39 @@ func (l *Logger) output(level Level, as *attrs, msg string) error {
 	l.mux.Lock()
 	defer l.mux.Unlock()
 
-	if l.buf == nil {
-		l.buf = bytes.NewBuffer(nil)
-	}
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
 
-	// try to flush old data
-	if l.buf.Len() > 0 {
-		l.buf.WriteTo(l.out)
-	}
-	l.buf.Reset()
+	buf.WriteString(colorDraw)
 
-	l.buf.WriteString(colorDraw)
-
-	l.formatHeader(level, file, line)
+	l.formatHeader(buf, level, file, line)
 	if as.IsValid() {
 		switch as.format {
 		case TextFormat:
-			l.buf.WriteString(as.String())
-			l.buf.WriteString(", ")
-			l.buf.WriteString("msg=")
+			buf.WriteString(as.String())
+			buf.WriteString(", ")
+			buf.WriteString("msg=")
 		case JSONFormat:
-			l.buf.WriteString(as.JSONString())
-			l.buf.WriteString(" ")
+			buf.WriteString(as.JSONString())
+			buf.WriteString(" ")
 		}
 	}
-	l.buf.WriteString(msg)
+	buf.WriteString(msg)
 
 	// adjust newline if it needs
 	if len(msg) > 0 && msg[len(msg)-1] != '\n' {
-		l.buf.WriteByte('\n')
+		buf.WriteByte('\n')
 	}
 
-	l.buf.WriteString(colorClean)
+	buf.WriteString(colorClean)
 
 	if as != nil && len(as.stacks) > 0 {
-		l.buf.Write(as.stacks)
-		l.buf.WriteByte('\n')
+		buf.Write(as.stacks)
+		buf.WriteByte('\n')
 	}
 
-	_, err := l.buf.WriteTo(l.out)
+	_, err := buf.WriteTo(l.out)
 	return err
 }
 
@@ -454,89 +446,87 @@ func (l *Logger) Trace(v ...any) {
 	defer l.mux.Unlock()
 
 	// process stacks
-	buf := make([]byte, 1<<20)
-	n := runtime.Stack(buf, true)
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
 
-	scanner := bufio.NewScanner(bytes.NewReader(buf[:n]))
+	stack := make([]byte, 1<<20)
+	n := runtime.Stack(stack, true)
+
+	scanner := bufio.NewScanner(bytes.NewReader(stack[:n]))
 	for scanner.Scan() {
-		l.buf.WriteString(scanner.Text())
-		l.buf.WriteByte('\n')
+		buf.WriteString(scanner.Text())
+		buf.WriteByte('\n')
 	}
 
-	l.buf.WriteTo(l.out)
+	buf.WriteTo(l.out)
 
 	os.Exit(1)
 }
 
 // Modified from src/log/log.go
-func (l *Logger) formatHeader(level Level, file string, line int) {
+func (l *Logger) formatHeader(buf *bytes.Buffer, level Level, file string, line int) {
 	t := time.Now()
 
 	if l.flag&(log.Ldate|log.Ltime|log.Lmicroseconds) != 0 {
 		if l.flag&log.Ldate != 0 {
 			year, month, day := t.Date()
 
-			itoa(l.buf, year, 4)
-			l.buf.WriteByte('/')
+			itoa(buf, year, 4)
+			buf.WriteByte('/')
 
-			itoa(l.buf, int(month), 2)
-			l.buf.WriteByte('/')
+			itoa(buf, int(month), 2)
+			buf.WriteByte('/')
 
-			itoa(l.buf, day, 2)
+			itoa(buf, day, 2)
 		}
 
 		if l.flag&(log.Ltime|log.Lmicroseconds) != 0 {
-			l.buf.WriteByte(' ')
+			buf.WriteByte(' ')
 
 			hour, minute, sec := t.Clock()
 
-			itoa(l.buf, hour, 2)
-			l.buf.WriteByte(':')
+			itoa(buf, hour, 2)
+			buf.WriteByte(':')
 
-			itoa(l.buf, minute, 2)
-			l.buf.WriteByte(':')
+			itoa(buf, minute, 2)
+			buf.WriteByte(':')
 
-			itoa(l.buf, sec, 2)
+			itoa(buf, sec, 2)
 			if l.flag&log.Lmicroseconds != 0 {
-				l.buf.WriteByte('.')
-				itoa(l.buf, t.Nanosecond()/1e3, 6)
+				buf.WriteByte('.')
+				itoa(buf, t.Nanosecond()/1e3, 6)
 			}
 		}
 
-		l.buf.WriteString(" - ")
+		buf.WriteString(" - ")
 	}
 
-	l.buf.WriteByte('[')
-	l.buf.WriteString(level.String())
+	buf.WriteByte('[')
+	buf.WriteString(level.String())
 	for _, tag := range l.tags {
-		l.buf.WriteString(", ")
-		l.buf.WriteString(tag)
+		buf.WriteString(", ")
+		buf.WriteString(tag)
 	}
-	l.buf.WriteByte(']')
-	l.buf.WriteString(" - ")
+	buf.WriteByte(']')
+	buf.WriteString(" - ")
 
 	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
 		short := file
 		if l.flag&log.Lshortfile != 0 {
-			for i := len(file) - 1; i > 0; i-- {
-				if file[i] == '/' {
-					short = file[i+1:]
-					break
-				}
+			if i := strings.LastIndex(file, "/"); i != -1 {
+				short = file[i+1:]
 			}
 		} else {
-			for i := 0; i < len(file)-5; i++ {
-				if file[i:i+5] == "/src/" {
-					short = file[i+1:]
-					break
-				}
+			if i := strings.Index(file, "/src/"); i != -1 {
+				short = file[i+1:]
 			}
 		}
 
-		l.buf.WriteString(short)
-		l.buf.WriteByte(':')
-		itoa(l.buf, line, -1)
-		l.buf.WriteString(": ")
+		buf.WriteString(short)
+		buf.WriteByte(':')
+		itoa(buf, line, -1)
+		buf.WriteString(": ")
 	}
 }
 
