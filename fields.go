@@ -5,7 +5,18 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
+)
+
+var (
+	attrsPool = &sync.Pool{
+		New: func() interface{} {
+			return &attrs{
+				fields: make(map[string]any),
+			}
+		},
+	}
 )
 
 const (
@@ -75,6 +86,12 @@ func (as *attrs) IsValid() bool {
 	}
 
 	return len(as.fields) > 0
+}
+
+func (as *attrs) Reset() {
+	as.format = 0
+	as.stacks = nil
+	as.fields = nil
 }
 
 func (as attrs) String() string {
