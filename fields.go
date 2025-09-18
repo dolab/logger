@@ -1,10 +1,10 @@
 package logger
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -77,10 +77,10 @@ func (as *attrs) IsValid() bool {
 	return len(as.fields) > 0
 }
 
-func (as *attrs) String() string {
-	n := len(as.fields) - 1
+func (as attrs) String() string {
+	n := len(as.fields)
 
-	var buf bytes.Buffer
+	var buf strings.Builder
 	for i, attr := range as.fields {
 		buf.WriteString(attr.Key)
 		buf.WriteString("=")
