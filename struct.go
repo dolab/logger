@@ -104,10 +104,10 @@ func (log *structLog) Fields(fields map[string]any) StructLogger {
 }
 
 func (log *structLog) fields() *attrs {
-	as := &attrs{
-		format: log.format,
-		stacks: log.stacks,
-	}
+	as := attrsPool.Get().(*attrs)
+	as.Reset()
+	as.format = log.format
+	as.stacks = log.stacks
 	for _, attr := range log.attrs {
 		attr(as)
 	}
@@ -116,49 +116,73 @@ func (log *structLog) fields() *attrs {
 }
 
 func (log *structLog) Debug(msg string) {
-	_ = log.writer(Ldebug, log.fields(), msg)
+	as := log.fields()
+	_ = log.writer(Ldebug, as, msg)
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Debugf(format string, args ...any) {
-	_ = log.writer(Ldebug, log.fields(), fmt.Sprintf(format, args...))
+	as := log.fields()
+	_ = log.writer(Ldebug, as, fmt.Sprintf(format, args...))
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Info(msg string) {
-	_ = log.writer(Linfo, log.fields(), msg)
+	as := log.fields()
+	_ = log.writer(Linfo, as, msg)
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Infof(format string, args ...any) {
-	_ = log.writer(Linfo, log.fields(), fmt.Sprintf(format, args...))
+	as := log.fields()
+	_ = log.writer(Linfo, as, fmt.Sprintf(format, args...))
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Warn(msg string) {
-	_ = log.writer(Lwarn, log.fields(), msg)
+	as := log.fields()
+	_ = log.writer(Lwarn, as, msg)
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Warnf(format string, args ...any) {
-	_ = log.writer(Lwarn, log.fields(), fmt.Sprintf(format, args...))
+	as := log.fields()
+	_ = log.writer(Lwarn, as, fmt.Sprintf(format, args...))
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Error(msg string) {
-	_ = log.writer(Lerror, log.fields(), msg)
+	as := log.fields()
+	_ = log.writer(Lerror, as, msg)
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Errorf(format string, args ...any) {
-	_ = log.writer(Lerror, log.fields(), fmt.Sprintf(format, args...))
+	as := log.fields()
+	_ = log.writer(Lerror, as, fmt.Sprintf(format, args...))
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Fatal(msg string) {
-	_ = log.writer(Lfatal, log.fields(), msg)
+	as := log.fields()
+	_ = log.writer(Lfatal, as, msg)
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Fatalf(format string, args ...any) {
-	_ = log.writer(Lfatal, log.fields(), fmt.Sprintf(format, args...))
+	as := log.fields()
+	_ = log.writer(Lfatal, as, fmt.Sprintf(format, args...))
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Panic(msg string) {
-	_ = log.writer(Lpanic, log.fields(), msg)
+	as := log.fields()
+	_ = log.writer(Lpanic, as, msg)
+	attrsPool.Put(as)
 }
 
 func (log *structLog) Panicf(format string, args ...any) {
-	_ = log.writer(Lpanic, log.fields(), fmt.Sprintf(format, args...))
+	as := log.fields()
+	_ = log.writer(Lpanic, as, fmt.Sprintf(format, args...))
+	attrsPool.Put(as)
 }

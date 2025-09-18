@@ -1,11 +1,22 @@
 package logger
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
+	"sync"
 	"time"
+)
+
+var (
+	attrsPool = &sync.Pool{
+		New: func() interface{} {
+			return &attrs{
+				fields: make(map[string]any),
+			}
+		},
+	}
 )
 
 const (
@@ -77,10 +88,16 @@ func (as *attrs) IsValid() bool {
 	return len(as.fields) > 0
 }
 
-func (as *attrs) String() string {
-	n := len(as.fields) - 1
+func (as *attrs) Reset() {
+	as.format = 0
+	as.stacks = nil
+	as.fields = nil
+}
 
-	var buf bytes.Buffer
+func (as attrs) String() string {
+	n := len(as.fields)
+
+	var buf strings.Builder
 	for i, attr := range as.fields {
 		buf.WriteString(attr.Key)
 		buf.WriteString("=")
